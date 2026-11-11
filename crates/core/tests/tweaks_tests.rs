@@ -66,3 +66,13 @@ fn test_tweaks_export_to_valid_csv() {
     let records_count = reader.records().count();
     assert_eq!(records_count, tweaks.len());
 }
+
+#[cfg(windows)]
+#[test]
+fn test_taskbar_color_apis() {
+    use windhawk_core::tweaks::{get_taskbar_color_prevalence, get_taskbar_current_color};
+    let current_color = get_taskbar_current_color();
+    println!("Current Taskbar RGB color: {:?}", current_color);
+    let prevalence = get_taskbar_color_prevalence();
+    println!("Current ColorPrevalence: {}", prevalence);
+}

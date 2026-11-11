@@ -8,7 +8,7 @@ use tracing::{debug, info};
 #[cfg(windows)]
 use windows_sys::Win32::System::Registry::{
     RegCloseKey, RegCreateKeyW, RegOpenKeyExW, RegQueryValueExW, RegSetValueExW, HKEY,
-    HKEY_CURRENT_USER, KEY_READ, REG_DWORD,
+    HKEY_CURRENT_USER, KEY_READ, REG_BINARY, REG_DWORD,
 };
 #[cfg(windows)]
 use windows_sys::Win32::UI::Shell::{SHChangeNotify, SHCNE_ASSOCCHANGED, SHCNF_IDLIST};
@@ -323,3 +323,202 @@ pub fn notify_shell_changes() {
 
 #[cfg(not(windows))]
 pub fn notify_shell_changes() {}
+
+/// Reads the current Windows 10 accent/taskbar color as [R, G, B].
+#[cfg(windows)]
+pub fn get_taskbar_current_color() -> Option<[u8; 3]> {
+    let subkey_w = to_wide("Software\\Microsoft\\Windows\\DWM");
+    let val_w = to_wide("AccentColor");
+    unsafe {
+        let mut hkey: HKEY = std::ptr::null_mut();
+        if RegOpenKeyExW(HKEY_CURRENT_USER, subkey_w.as_ptr(), 0, KEY_READ, &mut hkey) != 0 {
+            return None;
+        }
+        let mut data: u32 = 0;
+        let mut len = std::mem::size_of::<u32>() as u32;
+        let mut data_type: u32 = 0;
+        let q = RegQueryValueExW(
+            hkey,
+            val_w.as_ptr(),
+            std::ptr::null_mut(),
+            &mut data_type,
+            &mut data as *mut u32 as *mut u8,
+            &mut len,
+        );
+        RegCloseKey(hkey);
+        if q == 0 && data_type == REG_DWORD {
+            // Stored in ABGR format: 0xAABBGGRR
+            let r = (data & 0xFF) as u8;
+            let g = ((data >> 8) & 0xFF) as u8;
+            let b = ((data >> 16) & 0xFF) as u8;
+            Some([r, g, b])
+        } else {
+            None
+        }
+    }
+}
+
+#[cfg(not(windows))]
+pub fn get_taskbar_current_color() -> Option<[u8; 3]> {
+    None
+}
+
+/// Reads whether Windows 10 has ColorPrevalence enabled (shows accent color on Taskbar/Start/Action Center).
+#[cfg(windows)]
+pub fn get_taskbar_color_prevalence() -> bool {
+    let subkey_w = to_wide("Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize");
+    let val_w = to_wide("ColorPrevalence");
+    unsafe {
+        let mut hkey: HKEY = std::ptr::null_mut();
+        if RegOpenKeyExW(HKEY_CURRENT_USER, subkey_w.as_ptr(), 0, KEY_READ, &mut hkey) != 0 {
+            return false;
+        }
+        let mut data: u32 = 0;
+        let mut len = std::mem::size_of::<u32>() as u32;
+        let mut data_type: u32 = 0;
+        let q = RegQueryValueExW(
+            hkey,
+            val_w.as_ptr(),
+            std::ptr::null_mut(),
+            &mut data_type,
+            &mut data as *mut u32 as *mut u8,
+            &mut len,
+        );
+        RegCloseKey(hkey);
+        q == 0 && data_type == REG_DWORD && data == 1
+    }
+}
+
+#[cfg(not(windows))]
+pub fn get_taskbar_color_prevalence() -> bool {
+    false
+}
+
+/// Applies any custom RGB color to the Windows 10 Taskbar, Start Menu, and Action Center.
+#[cfg(windows)]
+pub fn set_taskbar_custom_color(
+    r: u8,
+    g: u8,
+    b: u8,
+    enable_prevalence: bool,
+) -> Result<(), WindhawkError> {
+    // 1. Calculate formats:
+    // ABGR: 0xFF BB GG RR (used by DWM AccentColor, AccentColorMenu, StartColorMenu)
+    let abgr: u32 = 0xFF00_0000 | ((b as u32) << 16) | ((g as u32) << 8) | (r as u32);
+    // ARGB: 0xC4 RR GG BB (used by DWM ColorizationColor)
+    let argb: u32 = 0xC400_0000 | ((r as u32) << 16) | ((g as u32) << 8) | (b as u32);
+    let prevalence_val: u32 = if enable_prevalence { 1 } else { 0 };
+
+    info!(
+        "Setting Windows 10 Taskbar Color: RGB({}, {}, {}) -> ABGR=0x{:08X}, Prevalence={}",
+        r, g, b, abgr, prevalence_val
+    );
+
+    unsafe {
+        // Set ColorPrevalence in Themes\Personalize
+        let personalize_w =
+            to_wide("Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize");
+        let mut hkey: HKEY = std::ptr::null_mut();
+        if RegCreateKeyW(HKEY_CURRENT_USER, personalize_w.as_ptr(), &mut hkey) == 0 {
+            let val_name = to_wide("ColorPrevalence");
+            RegSetValueExW(
+                hkey,
+                val_name.as_ptr(),
+                0,
+                REG_DWORD,
+                &prevalence_val as *const u32 as *const u8,
+                std::mem::size_of::<u32>() as u32,
+            );
+            RegCloseKey(hkey);
+        }
+
+        // Set DWM ColorPrevalence, AccentColor, and ColorizationColor
+        let dwm_w = to_wide("Software\\Microsoft\\Windows\\DWM");
+        if RegCreateKeyW(HKEY_CURRENT_USER, dwm_w.as_ptr(), &mut hkey) == 0 {
+            let prev_name = to_wide("ColorPrevalence");
+            RegSetValueExW(
+                hkey,
+                prev_name.as_ptr(),
+                0,
+                REG_DWORD,
+                &prevalence_val as *const u32 as *const u8,
+                std::mem::size_of::<u32>() as u32,
+            );
+            let accent_name = to_wide("AccentColor");
+            RegSetValueExW(
+                hkey,
+                accent_name.as_ptr(),
+                0,
+                REG_DWORD,
+                &abgr as *const u32 as *const u8,
+                std::mem::size_of::<u32>() as u32,
+            );
+            let colorize_name = to_wide("ColorizationColor");
+            RegSetValueExW(
+                hkey,
+                colorize_name.as_ptr(),
+                0,
+                REG_DWORD,
+                &argb as *const u32 as *const u8,
+                std::mem::size_of::<u32>() as u32,
+            );
+            RegCloseKey(hkey);
+        }
+
+        // Set Explorer\Accent keys
+        let accent_w = to_wide("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Accent");
+        if RegCreateKeyW(HKEY_CURRENT_USER, accent_w.as_ptr(), &mut hkey) == 0 {
+            let menu_name = to_wide("AccentColorMenu");
+            RegSetValueExW(
+                hkey,
+                menu_name.as_ptr(),
+                0,
+                REG_DWORD,
+                &abgr as *const u32 as *const u8,
+                std::mem::size_of::<u32>() as u32,
+            );
+            let start_name = to_wide("StartColorMenu");
+            RegSetValueExW(
+                hkey,
+                start_name.as_ptr(),
+                0,
+                REG_DWORD,
+                &abgr as *const u32 as *const u8,
+                std::mem::size_of::<u32>() as u32,
+            );
+
+            // Generate 32-byte AccentPalette (8 color variations of 4 bytes: RGBA)
+            let mut palette = [0u8; 32];
+            for i in 0..8 {
+                let factor = 0.5 + (i as f32 * 0.1);
+                palette[i * 4] = ((r as f32 * factor).min(255.0)) as u8;
+                palette[i * 4 + 1] = ((g as f32 * factor).min(255.0)) as u8;
+                palette[i * 4 + 2] = ((b as f32 * factor).min(255.0)) as u8;
+                palette[i * 4 + 3] = 255;
+            }
+            let pal_name = to_wide("AccentPalette");
+            RegSetValueExW(
+                hkey,
+                pal_name.as_ptr(),
+                0,
+                REG_BINARY,
+                palette.as_ptr(),
+                palette.len() as u32,
+            );
+            RegCloseKey(hkey);
+        }
+    }
+
+    notify_shell_changes();
+    Ok(())
+}
+
+#[cfg(not(windows))]
+pub fn set_taskbar_custom_color(
+    _r: u8,
+    _g: u8,
+    _b: u8,
+    _enable_prevalence: bool,
+) -> Result<(), WindhawkError> {
+    Ok(())
+}

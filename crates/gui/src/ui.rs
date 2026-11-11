@@ -151,6 +151,7 @@ pub fn open_folder_in_explorer(path: &Path) {
 pub enum NavCategory {
     All,
     Tweaks,
+    TaskbarColor,
     Taskbar,
     Explorer,
     Themes,
@@ -165,6 +166,9 @@ pub struct WindhawkApp {
     pub active_category: NavCategory,
     pub search_query: String,
     pub toast_message: Option<(String, std::time::Instant)>,
+    // For taskbar color customization:
+    pub taskbar_color: [u8; 3],
+    pub taskbar_color_prevalence: bool,
     // For adding a new custom note:
     pub new_title: String,
     pub new_body: String,
@@ -185,12 +189,16 @@ impl WindhawkApp {
             }
         }
 
+        let initial_color =
+            windhawk_core::tweaks::get_taskbar_current_color().unwrap_or([139, 92, 246]);
+        let initial_prevalence = windhawk_core::tweaks::get_taskbar_color_prevalence();
+
         Self {
             os_version,
             notes,
             tweaks,
             selected_note_index: 0,
-            active_category: NavCategory::All,
+            active_category: NavCategory::TaskbarColor,
             search_query: String::new(),
             toast_message: Some((
                 format!(
@@ -199,6 +207,8 @@ impl WindhawkApp {
                 ),
                 std::time::Instant::now(),
             )),
+            taskbar_color: initial_color,
+            taskbar_color_prevalence: initial_prevalence,
             new_title: String::new(),
             new_body: String::new(),
             new_category: "Custom".into(),
@@ -269,7 +279,7 @@ impl WindhawkApp {
             .filter(|(_, note)| {
                 // Category filter
                 let cat_match = match self.active_category {
-                    NavCategory::All | NavCategory::NewNote => true,
+                    NavCategory::All | NavCategory::NewNote | NavCategory::TaskbarColor => true,
                     NavCategory::Tweaks => note.id >= 100,
                     NavCategory::Taskbar => {
                         note.title.to_lowercase().contains("taskbar")
@@ -548,6 +558,15 @@ impl WindhawkApp {
                 ui.add_space(2.0);
                 if cat_button(
                     ui,
+                    "🎨  Taskbar Color Studio",
+                    NavCategory::TaskbarColor,
+                    self.active_category,
+                ) {
+                    self.active_category = NavCategory::TaskbarColor;
+                }
+                ui.add_space(2.0);
+                if cat_button(
+                    ui,
                     "🗔  Taskbar & Shell",
                     NavCategory::Taskbar,
                     self.active_category,
@@ -688,6 +707,8 @@ impl WindhawkApp {
             .show(ctx, |ui| {
                 if self.active_category == NavCategory::NewNote {
                     self.render_new_note_view(ui);
+                } else if self.active_category == NavCategory::TaskbarColor {
+                    self.render_taskbar_color_studio(ui);
                 } else {
                     self.render_main_split_view(ui);
                 }
@@ -772,6 +793,358 @@ impl WindhawkApp {
             {
                 self.active_category = NavCategory::All;
             }
+        });
+    }
+
+    fn render_taskbar_color_studio(&mut self, ui: &mut egui::Ui) {
+        ui.vertical(|ui| {
+            // Header
+            ui.horizontal(|ui| {
+                ui.label(
+                    RichText::new("🎨 Windows 10 Taskbar & Accent Color Studio")
+                        .size(20.0)
+                        .color(Color32::WHITE)
+                        .strong(),
+                );
+            });
+            ui.add_space(4.0);
+            ui.label(
+                RichText::new(
+                    "Unlock custom TrueColor RGB palette for Windows 10 Taskbar, Start Menu, and Action Center."
+                )
+                .color(Color32::from_rgb(148, 163, 184))
+                .size(13.0),
+            );
+
+            ui.add_space(14.0);
+
+            // Live Taskbar Preview Banner
+            egui::Frame::none()
+                .fill(Color32::from_rgb(15, 17, 23))
+                .stroke(Stroke::new(1.0_f32, Color32::from_rgb(51, 65, 85)))
+                .rounding(Rounding::same(8.0))
+                .inner_margin(egui::Margin::same(12.0))
+                .show(ui, |ui| {
+                    ui.label(
+                        RichText::new("🖥 LIVE TASKBAR PREVIEW")
+                            .size(10.5)
+                            .color(Color32::from_rgb(148, 163, 184))
+                            .strong(),
+                    );
+                    ui.add_space(6.0);
+
+                    // Mock Windows 10 Taskbar Strip
+                    let preview_bg = if self.taskbar_color_prevalence {
+                        // Tinted with chosen color (simulating Windows 10 semi-acrylic/alpha taskbar tint)
+                        Color32::from_rgba_premultiplied(
+                            (self.taskbar_color[0] as f32 * 0.85) as u8,
+                            (self.taskbar_color[1] as f32 * 0.85) as u8,
+                            (self.taskbar_color[2] as f32 * 0.85) as u8,
+                            255,
+                        )
+                    } else {
+                        // Default dark taskbar without color prevalence
+                        Color32::from_rgb(16, 16, 16)
+                    };
+
+                    let accent_indicator = Color32::from_rgb(
+                        self.taskbar_color[0],
+                        self.taskbar_color[1],
+                        self.taskbar_color[2],
+                    );
+
+                    egui::Frame::none()
+                        .fill(preview_bg)
+                        .stroke(Stroke::new(1.0_f32, Color32::from_rgb(40, 44, 52)))
+                        .rounding(Rounding::same(4.0))
+                        .inner_margin(egui::Margin::symmetric(8.0, 6.0))
+                        .show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                // Windows 10 Start button icon
+                                egui::Frame::none()
+                                    .fill(Color32::from_rgba_premultiplied(255, 255, 255, 20))
+                                    .rounding(Rounding::same(3.0))
+                                    .inner_margin(egui::Margin::symmetric(8.0, 4.0))
+                                    .show(ui, |ui| {
+                                        ui.label(RichText::new("⊞").color(Color32::WHITE).size(15.0).strong());
+                                    });
+
+                                ui.add_space(4.0);
+
+                                // Search box
+                                egui::Frame::none()
+                                    .fill(Color32::from_rgb(30, 32, 40))
+                                    .rounding(Rounding::same(2.0))
+                                    .inner_margin(egui::Margin::symmetric(10.0, 4.0))
+                                    .show(ui, |ui| {
+                                        ui.label(RichText::new("🔍 Type here to search").color(Color32::from_rgb(140, 145, 160)).size(11.0));
+                                    });
+
+                                ui.add_space(8.0);
+
+                                // Taskbar app icons
+                                let icons = [("📁", false), ("🌐", false), ("⚙", false), ("📝", true)];
+                                for (icon, active) in icons {
+                                    egui::Frame::none()
+                                        .fill(if active { Color32::from_rgba_premultiplied(255, 255, 255, 30) } else { Color32::TRANSPARENT })
+                                        .rounding(Rounding::same(3.0))
+                                        .inner_margin(egui::Margin::symmetric(7.0, 3.0))
+                                        .show(ui, |ui| {
+                                            ui.vertical(|ui| {
+                                                ui.label(RichText::new(icon).size(14.0));
+                                                if active {
+                                                    ui.add_space(1.0);
+                                                    let (rect, _) = ui.allocate_exact_size(Vec2::new(14.0, 2.0), egui::Sense::hover());
+                                                    ui.painter().rect_filled(rect, Rounding::ZERO, accent_indicator);
+                                                }
+                                            });
+                                        });
+                                    ui.add_space(2.0);
+                                }
+
+                                // Right side system tray
+                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                    ui.label(RichText::new("💬").size(12.0));
+                                    ui.add_space(6.0);
+                                    ui.vertical(|ui| {
+                                        ui.label(RichText::new("12:00 PM").color(Color32::WHITE).size(10.0));
+                                        ui.label(RichText::new("11/11/2026").color(Color32::from_rgb(160, 160, 160)).size(9.0));
+                                    });
+                                    ui.add_space(8.0);
+                                    ui.label(RichText::new("🔊").size(12.0));
+                                    ui.add_space(4.0);
+                                    ui.label(RichText::new("📶").size(12.0));
+                                    ui.add_space(4.0);
+                                    ui.label(RichText::new("ENG").color(Color32::WHITE).size(10.0));
+                                });
+                            });
+                        });
+                });
+
+            ui.add_space(14.0);
+
+            // Color Controls Grid & Color Preview
+            egui::Frame::none()
+                .fill(Color32::from_rgb(18, 20, 28))
+                .stroke(Stroke::new(1.0_f32, Color32::from_rgb(51, 65, 85)))
+                .rounding(Rounding::same(8.0))
+                .inner_margin(egui::Margin::same(14.0))
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        // Large Color Swatch & Native Color Edit Button
+                        let color_box_size = Vec2::new(56.0, 56.0);
+                        let (rect, _response) = ui.allocate_exact_size(color_box_size, egui::Sense::hover());
+                        ui.painter().rect_filled(
+                            rect,
+                            Rounding::same(8.0),
+                            Color32::from_rgb(self.taskbar_color[0], self.taskbar_color[1], self.taskbar_color[2]),
+                        );
+                        ui.painter().rect_stroke(
+                            rect,
+                            Rounding::same(8.0),
+                            Stroke::new(2.0_f32, Color32::WHITE),
+                        );
+
+                        ui.add_space(12.0);
+
+                        ui.vertical(|ui| {
+                            let hex_code = format!(
+                                "#{:02X}{:02X}{:02X}",
+                                self.taskbar_color[0], self.taskbar_color[1], self.taskbar_color[2]
+                            );
+
+                            ui.horizontal(|ui| {
+                                ui.label(
+                                    RichText::new(&hex_code)
+                                        .size(18.0)
+                                        .color(Color32::WHITE)
+                                        .monospace()
+                                        .strong(),
+                                );
+
+                                if ui.button("📋 Copy Hex").clicked() {
+                                    ui.ctx().copy_text(hex_code.clone());
+                                    self.set_toast(format!("Copied {} to clipboard", hex_code));
+                                }
+                            });
+
+                            ui.add_space(4.0);
+
+                            ui.horizontal(|ui| {
+                                ui.label(
+                                    RichText::new(format!(
+                                        "RGB({}, {}, {})",
+                                        self.taskbar_color[0], self.taskbar_color[1], self.taskbar_color[2]
+                                    ))
+                                    .color(Color32::from_rgb(148, 163, 184))
+                                    .size(12.0),
+                                );
+
+                                ui.add_space(12.0);
+                                ui.label(RichText::new("Color Picker:").color(Color32::from_rgb(203, 213, 225)).size(12.0));
+                                ui.color_edit_button_srgb(&mut self.taskbar_color);
+                            });
+                        });
+                    });
+
+                    ui.add_space(12.0);
+                    ui.separator();
+                    ui.add_space(8.0);
+
+                    // Sliders
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new("🔴 Red:").color(Color32::from_rgb(239, 68, 68)).strong());
+                        ui.add(egui::Slider::new(&mut self.taskbar_color[0], 0..=255).text(""));
+                        ui.add_space(8.0);
+
+                        ui.label(RichText::new("🟢 Green:").color(Color32::from_rgb(34, 197, 94)).strong());
+                        ui.add(egui::Slider::new(&mut self.taskbar_color[1], 0..=255).text(""));
+                        ui.add_space(8.0);
+
+                        ui.label(RichText::new("🔵 Blue:").color(Color32::from_rgb(59, 130, 246)).strong());
+                        ui.add(egui::Slider::new(&mut self.taskbar_color[2], 0..=255).text(""));
+                    });
+
+                    ui.add_space(12.0);
+
+                    // Color Prevalence Checkbox
+                    ui.checkbox(
+                        &mut self.taskbar_color_prevalence,
+                        RichText::new("Show accent color on Taskbar, Start Menu, and Action Center (ColorPrevalence)")
+                            .color(Color32::from_rgb(226, 232, 240))
+                            .size(13.0),
+                    );
+                    ui.label(
+                        RichText::new("   When unchecked, the taskbar uses the standard dark or light theme.")
+                            .size(11.0)
+                            .color(Color32::from_rgb(148, 163, 184)),
+                    );
+                });
+
+            ui.add_space(14.0);
+
+            // 1-Click Curated Presets
+            ui.label(
+                RichText::new("⚡ 1-CLICK CURATED PRESETS")
+                    .size(11.0)
+                    .color(Color32::from_rgb(148, 163, 184))
+                    .strong(),
+            );
+            ui.add_space(6.0);
+
+            let presets: [(&str, [u8; 3]); 10] = [
+                ("Cyberpunk Neon", [255, 0, 127]),
+                ("Electric Violet", [139, 92, 246]),
+                ("Matrix Emerald", [16, 185, 129]),
+                ("Windows Cyan", [0, 183, 195]),
+                ("Classic Blue", [0, 120, 215]),
+                ("Midnight Navy", [30, 58, 138]),
+                ("Sunset Crimson", [239, 68, 68]),
+                ("Solar Gold", [245, 158, 11]),
+                ("Stealth Slate", [51, 65, 85]),
+                ("Pastel Lilac", [192, 132, 252]),
+            ];
+
+            ui.horizontal_wrapped(|ui| {
+                for (name, rgb) in presets {
+                    let color = Color32::from_rgb(rgb[0], rgb[1], rgb[2]);
+                    let btn = egui::Button::new(
+                        RichText::new(format!("● {}", name))
+                            .color(Color32::WHITE)
+                            .size(12.0),
+                    )
+                    .fill(Color32::from_rgba_premultiplied(
+                        (rgb[0] as f32 * 0.35) as u8,
+                        (rgb[1] as f32 * 0.35) as u8,
+                        (rgb[2] as f32 * 0.35) as u8,
+                        220,
+                    ))
+                    .stroke(Stroke::new(1.0_f32, color))
+                    .rounding(Rounding::same(6.0))
+                    .min_size(Vec2::new(115.0, 28.0));
+
+                    if ui.add(btn).clicked() {
+                        self.taskbar_color = rgb;
+                        self.taskbar_color_prevalence = true;
+                        self.set_toast(format!("Selected preset '{}'", name));
+                    }
+                    ui.add_space(4.0);
+                }
+            });
+
+            ui.add_space(18.0);
+
+            // Action Buttons
+            ui.horizontal(|ui| {
+                let apply_btn = egui::Button::new(
+                    RichText::new("⚡ Apply Color to Windows 10 Taskbar")
+                        .color(Color32::WHITE)
+                        .size(13.5)
+                        .strong(),
+                )
+                .fill(Color32::from_rgb(16, 185, 129)) // Emerald 500
+                .rounding(Rounding::same(6.0))
+                .min_size(Vec2::new(260.0, 36.0));
+
+                if ui.add(apply_btn).clicked() {
+                    match windhawk_core::tweaks::set_taskbar_custom_color(
+                        self.taskbar_color[0],
+                        self.taskbar_color[1],
+                        self.taskbar_color[2],
+                        self.taskbar_color_prevalence,
+                    ) {
+                        Ok(()) => {
+                            let hex = format!(
+                                "#{:02X}{:02X}{:02X}",
+                                self.taskbar_color[0], self.taskbar_color[1], self.taskbar_color[2]
+                            );
+                            self.set_toast(format!(
+                                "Applied Taskbar color {} (Prevalence: {}) live to Windows 10!",
+                                hex, self.taskbar_color_prevalence
+                            ));
+                        }
+                        Err(e) => {
+                            show_error_dialog("Failed to Apply Color", &e.to_string());
+                        }
+                    }
+                }
+
+                ui.add_space(8.0);
+
+                let reset_btn = egui::Button::new(
+                    RichText::new("↩ Reset to Windows Default")
+                        .color(Color32::from_rgb(203, 213, 225))
+                        .size(13.0),
+                )
+                .rounding(Rounding::same(6.0))
+                .min_size(Vec2::new(190.0, 36.0));
+
+                if ui.add(reset_btn).clicked() {
+                    self.taskbar_color = [0, 120, 215]; // Windows Default Blue
+                    self.taskbar_color_prevalence = false;
+                    let _ = windhawk_core::tweaks::set_taskbar_custom_color(0, 120, 215, false);
+                    self.set_toast("Reset Taskbar color to Windows 10 Default.");
+                }
+
+                ui.add_space(8.0);
+
+                let sync_btn = egui::Button::new(
+                    RichText::new("🔄 Read from System")
+                        .color(Color32::from_rgb(148, 163, 184))
+                        .size(13.0),
+                )
+                .rounding(Rounding::same(6.0))
+                .min_size(Vec2::new(140.0, 36.0));
+
+                if ui.add(sync_btn).clicked() {
+                    if let Some(col) = windhawk_core::tweaks::get_taskbar_current_color() {
+                        self.taskbar_color = col;
+                    }
+                    self.taskbar_color_prevalence =
+                        windhawk_core::tweaks::get_taskbar_color_prevalence();
+                    self.set_toast("Synchronized color settings from Windows Registry.");
+                }
+            });
         });
     }
 

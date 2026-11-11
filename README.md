@@ -43,8 +43,24 @@ Directly inspects and toggles real Windows 10 system registry keys, with live st
   * Registry: `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize\SystemUsesLightTheme`
   * Values: `0` (Dark theme) vs `1` (Light theme).
 * **Disable Bing Web Search in Start Menu**:
-  * Registry: `HKCU\Software\Policies\Microsoft\Windows\Explorer\DisableSearchBoxSuggestions`
-  * Values: `1` (Fast local search only) vs `0` (Cloud web suggestions enabled).
+  * Registry: `HKCU\Software\Microsoft\Windows\CurrentVersion\Search\BingSearchEnabled`
+  * Values: `0` (Fast local search only) vs `1` (Cloud web suggestions enabled).
+* **Show Seconds in Taskbar Clock**:
+  * Registry: `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\ShowSecondsInSystemClock`
+  * Values: `1` (Show real-time seconds `HH:MM:SS`) vs `0` (Hide seconds).
+* **Use Small Taskbar Buttons**:
+  * Registry: `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\TaskbarSmallIcons`
+  * Values: `1` (Compact taskbar height) vs `0` (Standard size).
+* **Show 'This PC' Desktop Icon**:
+  * Registry: `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel\{20D04FE0-3AEA-1069-A2D8-08002B30309D}`
+  * Values: `0` (Show icon on desktop) vs `1` (Hide icon).
+
+### 🎨 Windows 10 Taskbar & Accent Color Studio
+* **Any Custom 24-bit TrueColor RGB on Taskbar & Shell**:
+  * Bypasses the restricted Windows 10 Settings preset color grid to unlock full 16.7-million color RGB freedom.
+  * Direct synchronization across `HKCU\Software\Microsoft\Windows\DWM\AccentColor` (ABGR), `ColorizationColor` (ARGB), `Personalize\ColorPrevalence`, and `Explorer\Accent\AccentPalette` (32-byte 8-shade palette).
+  * Interactive native Color Picker, RGB integer sliders (0–255), Hex code copy, and 10 curated 1-click presets (Cyberpunk Neon, Electric Violet, Matrix Emerald, Windows Cyan, Classic Blue, Midnight Navy, Sunset Crimson, Solar Gold, Stealth Slate, Pastel Lilac).
+  * Instant live broadcast via `WM_SETTINGCHANGE` (`ImmersiveColorSet`, `TraySettings`, `ShellState`, `Environment`, `Policy`) and `SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST)`.
 
 ---
 
