@@ -76,3 +76,4 @@ if ($candle -and $light) {
 }
 
 Write-Host "Packaging complete." -ForegroundColor Green
+

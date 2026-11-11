@@ -58,3 +58,4 @@ jobs:
           name: windhawk-win10-portable-x64
           path: windhawk-win10-portable.zip
           retention-days: 14
+

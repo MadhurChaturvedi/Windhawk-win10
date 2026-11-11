@@ -98,3 +98,4 @@
         <WixVariable Id='WixUILicenseRtf' Value='wix/License.rtf' />
     </Product>
 </Wix>
+

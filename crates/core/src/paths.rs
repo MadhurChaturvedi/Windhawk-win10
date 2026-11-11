@@ -35,3 +35,4 @@ pub fn ensure_parent_dir(path: &Path) -> Result<(), WindhawkError> {
     }
     Ok(())
 }
+
