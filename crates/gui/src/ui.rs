@@ -249,6 +249,12 @@ impl WindhawkApp {
 
 impl eframe::App for WindhawkApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.render_ui(ctx);
+    }
+}
+
+impl WindhawkApp {
+    pub fn render_ui(&mut self, ctx: &egui::Context) {
         // Modern custom dark palette styling
         let mut visuals = egui::Visuals::dark();
         visuals.panel_fill = Color32::from_rgb(22, 24, 29); // #16181d
@@ -387,7 +393,7 @@ impl eframe::App for WindhawkApp {
         // LEFT NAVIGATION SIDEBAR
         egui::SidePanel::left("left_sidebar")
             .resizable(false)
-            .default_width(240.0)
+            .exact_width(250.0)
             .frame(
                 egui::Frame::none()
                     .fill(Color32::from_rgb(22, 25, 32))
@@ -402,10 +408,11 @@ impl eframe::App for WindhawkApp {
                         .strong(),
                 );
                 ui.add_space(4.0);
+                let w = ui.available_width();
                 ui.add(
                     egui::TextEdit::singleline(&mut self.search_query)
                         .hint_text("🔍 Search notes and tweaks...")
-                        .desired_width(f32::INFINITY),
+                        .desired_width(w),
                 );
                 ui.add_space(14.0);
 
@@ -429,13 +436,14 @@ impl eframe::App for WindhawkApp {
                     } else {
                         RichText::new(name).color(Color32::from_rgb(203, 213, 225))
                     };
+                    let width = ui.available_width();
                     let btn = egui::Button::new(text)
                         .fill(if is_selected {
                             Color32::from_rgb(37, 99, 235) // Royal blue
                         } else {
                             Color32::from_rgb(30, 34, 44)
                         })
-                        .min_size(Vec2::new(f32::INFINITY, 30.0));
+                        .min_size(Vec2::new(width, 30.0));
                     ui.add(btn).clicked()
                 };
 
@@ -501,10 +509,11 @@ impl eframe::App for WindhawkApp {
                 );
                 ui.add_space(6.0);
 
+                let btn_w = ui.available_width();
                 if ui
                     .add(
                         egui::Button::new(RichText::new("📂  Open Export Folder").size(12.0))
-                            .min_size(Vec2::new(f32::INFINITY, 28.0)),
+                            .min_size(Vec2::new(btn_w, 28.0)),
                     )
                     .clicked()
                 {
@@ -517,7 +526,7 @@ impl eframe::App for WindhawkApp {
                 if ui
                     .add(
                         egui::Button::new(RichText::new("📋  Copy CSV to Clipboard").size(12.0))
-                            .min_size(Vec2::new(f32::INFINITY, 28.0)),
+                            .min_size(Vec2::new(btn_w, 28.0)),
                     )
                     .clicked()
                 {
@@ -565,11 +574,12 @@ impl WindhawkApp {
         );
         ui.add_space(14.0);
 
+        let full_w = ui.available_width();
         ui.label(RichText::new("Note Title:").strong());
         ui.add(
             egui::TextEdit::singleline(&mut self.new_title)
                 .hint_text("e.g. Restore Classic Volume Mixer on Taskbar")
-                .desired_width(f32::INFINITY),
+                .desired_width(full_w),
         );
         ui.add_space(8.0);
 
@@ -577,7 +587,7 @@ impl WindhawkApp {
         ui.add(
             egui::TextEdit::singleline(&mut self.new_category)
                 .hint_text("Taskbar, Explorer, Theme, Custom")
-                .desired_width(f32::INFINITY),
+                .desired_width(full_w),
         );
         ui.add_space(8.0);
 
@@ -586,7 +596,7 @@ impl WindhawkApp {
             egui::TextEdit::multiline(&mut self.new_body)
                 .hint_text("Describe registry tweak, hook details, or mod notes...")
                 .desired_rows(8)
-                .desired_width(f32::INFINITY),
+                .desired_width(full_w),
         );
         ui.add_space(14.0);
 
@@ -762,160 +772,188 @@ impl WindhawkApp {
                 );
                 ui.add_space(6.0);
 
-                if self.selected_note_index < self.notes.len() {
-                    let sel_id = self.notes[self.selected_note_index].id;
-                    let associated_tweak = self.tweaks.iter().find(|t| t.id == sel_id).cloned();
+                egui::ScrollArea::vertical()
+                    .id_salt("inspector_scroll")
+                    .show(ui, |ui| {
+                        if self.selected_note_index < self.notes.len() {
+                            let sel_id = self.notes[self.selected_note_index].id;
+                            let associated_tweak =
+                                self.tweaks.iter().find(|t| t.id == sel_id).cloned();
 
-                    // If this is a real Windows 10 tweak, show live registry status and toggle button!
-                    if let Some(tweak) = associated_tweak {
-                        let live_status = read_tweak_status(&tweak);
-                        let is_enabled = live_status == Some(true);
+                            // If this is a real Windows 10 tweak, show live registry status and toggle button!
+                            if let Some(tweak) = associated_tweak {
+                                let live_status = read_tweak_status(&tweak);
+                                let is_enabled = live_status == Some(true);
 
-                        egui::Frame::none()
-                            .fill(Color32::from_rgb(20, 30, 48))
-                            .stroke(Stroke::new(1.0_f32, Color32::from_rgb(56, 189, 248)))
-                            .rounding(Rounding::same(8.0_f32))
-                            .inner_margin(egui::Margin::same(12.0))
-                            .show(ui, |ui| {
-                                ui.horizontal(|ui| {
-                                    ui.label(
-                                        RichText::new("⚡ Live Windows 10 System Tweak")
-                                            .color(Color32::from_rgb(56, 189, 248))
-                                            .strong(),
-                                    );
+                                egui::Frame::none()
+                                    .fill(Color32::from_rgb(20, 30, 48))
+                                    .stroke(Stroke::new(1.0_f32, Color32::from_rgb(56, 189, 248)))
+                                    .rounding(Rounding::same(8.0_f32))
+                                    .inner_margin(egui::Margin::same(12.0))
+                                    .show(ui, |ui| {
+                                        ui.horizontal(|ui| {
+                                            ui.label(
+                                                RichText::new("⚡ Live Windows 10 System Tweak")
+                                                    .color(Color32::from_rgb(56, 189, 248))
+                                                    .strong(),
+                                            );
 
-                                    ui.with_layout(
-                                        egui::Layout::right_to_left(egui::Align::Center),
-                                        |ui| {
-                                            if is_enabled {
-                                                ui.label(
-                                                    RichText::new("● ACTIVE (Enabled)")
-                                                        .color(Color32::from_rgb(34, 197, 94))
-                                                        .strong(),
-                                                );
-                                            } else {
-                                                ui.label(
-                                                    RichText::new("○ INACTIVE (Default)")
-                                                        .color(Color32::from_rgb(148, 163, 184)),
-                                                );
+                                            ui.with_layout(
+                                                egui::Layout::right_to_left(egui::Align::Center),
+                                                |ui| {
+                                                    if is_enabled {
+                                                        ui.label(
+                                                            RichText::new("● ACTIVE (Enabled)")
+                                                                .color(Color32::from_rgb(
+                                                                    34, 197, 94,
+                                                                ))
+                                                                .strong(),
+                                                        );
+                                                    } else {
+                                                        ui.label(
+                                                            RichText::new("○ INACTIVE (Default)")
+                                                                .color(Color32::from_rgb(
+                                                                    148, 163, 184,
+                                                                )),
+                                                        );
+                                                    }
+                                                },
+                                            );
+                                        });
+
+                                        ui.add_space(4.0);
+                                        ui.label(
+                                            RichText::new(format!(
+                                                "Registry: HKCU\\{}\\{}",
+                                                tweak.registry_path, tweak.value_name
+                                            ))
+                                            .size(10.5)
+                                            .color(Color32::from_rgb(148, 163, 184)),
+                                        );
+                                        ui.add_space(8.0);
+
+                                        let toggle_btn_text = if is_enabled {
+                                            RichText::new(
+                                                "↩ Disable Tweak (Restore Windows Default)",
+                                            )
+                                            .color(Color32::WHITE)
+                                        } else {
+                                            RichText::new("⚡ Apply Tweak to Windows 10")
+                                                .color(Color32::WHITE)
+                                                .strong()
+                                        };
+
+                                        let toggle_color = if is_enabled {
+                                            Color32::from_rgb(180, 83, 9) // Amber 700
+                                        } else {
+                                            Color32::from_rgb(16, 185, 129) // Emerald 500
+                                        };
+
+                                        let btn_w = ui.available_width();
+                                        if ui
+                                            .add(
+                                                egui::Button::new(toggle_btn_text)
+                                                    .fill(toggle_color)
+                                                    .min_size(Vec2::new(btn_w, 30.0)),
+                                            )
+                                            .clicked()
+                                        {
+                                            match toggle_tweak(&tweak) {
+                                                Ok(new_state) => {
+                                                    let state_str = if new_state {
+                                                        "Enabled"
+                                                    } else {
+                                                        "Disabled"
+                                                    };
+                                                    self.set_toast(format!(
+                                                        "✔ Windows 10 tweak '{}' is now {}",
+                                                        tweak.title, state_str
+                                                    ));
+
+                                                    // Update note body
+                                                    let updated_note =
+                                                        tweak.to_note(Some(new_state));
+                                                    self.notes[self.selected_note_index] =
+                                                        updated_note;
+                                                }
+                                                Err(e) => {
+                                                    self.set_toast(format!(
+                                                        "Failed to apply tweak: {}",
+                                                        e
+                                                    ));
+                                                }
                                             }
-                                        },
-                                    );
-                                });
+                                        }
+                                    });
+                                ui.add_space(10.0);
+                            }
 
-                                ui.add_space(4.0);
+                            // Editable Note view
+                            let note_w = ui.available_width();
+                            ui.label(RichText::new("Title:").size(11.0).strong());
+                            ui.add(
+                                egui::TextEdit::singleline(
+                                    &mut self.notes[self.selected_note_index].title,
+                                )
+                                .desired_width(note_w),
+                            );
+                            ui.add_space(6.0);
+
+                            ui.label(RichText::new("Description / Details:").size(11.0).strong());
+                            ui.add(
+                                egui::TextEdit::multiline(
+                                    &mut self.notes[self.selected_note_index].body,
+                                )
+                                .desired_rows(8)
+                                .desired_width(note_w),
+                            );
+                            ui.add_space(8.0);
+
+                            ui.horizontal(|ui| {
                                 ui.label(
                                     RichText::new(format!(
-                                        "Registry: HKCU\\{}\\{}",
-                                        tweak.registry_path, tweak.value_name
+                                        "Created: {} | Updated: {}",
+                                        self.notes[self.selected_note_index].created_at,
+                                        self.notes[self.selected_note_index].updated_at
                                     ))
-                                    .size(10.5)
-                                    .color(Color32::from_rgb(148, 163, 184)),
+                                    .size(10.0)
+                                    .color(Color32::from_rgb(100, 116, 139)),
                                 );
-                                ui.add_space(8.0);
+                            });
 
-                                let toggle_btn_text = if is_enabled {
-                                    RichText::new("↩ Disable Tweak (Restore Windows Default)")
-                                        .color(Color32::WHITE)
-                                } else {
-                                    RichText::new("⚡ Apply Tweak to Windows 10")
-                                        .color(Color32::WHITE)
-                                        .strong()
-                                };
-
-                                let toggle_color = if is_enabled {
-                                    Color32::from_rgb(180, 83, 9) // Amber 700
-                                } else {
-                                    Color32::from_rgb(16, 185, 129) // Emerald 500
-                                };
-
+                            ui.add_space(10.0);
+                            ui.horizontal(|ui| {
                                 if ui
                                     .add(
-                                        egui::Button::new(toggle_btn_text)
-                                            .fill(toggle_color)
-                                            .min_size(Vec2::new(f32::INFINITY, 30.0)),
+                                        egui::Button::new("💾 Save Note")
+                                            .min_size(Vec2::new(90.0, 26.0)),
                                     )
                                     .clicked()
                                 {
-                                    match toggle_tweak(&tweak) {
-                                        Ok(new_state) => {
-                                            let state_str =
-                                                if new_state { "Enabled" } else { "Disabled" };
-                                            self.set_toast(format!(
-                                                "✔ Windows 10 tweak '{}' is now {}",
-                                                tweak.title, state_str
-                                            ));
+                                    self.notes[self.selected_note_index].updated_at =
+                                        chrono_or_simple_timestamp();
+                                    self.set_toast("Saved note changes!");
+                                }
 
-                                            // Update note body
-                                            let updated_note = tweak.to_note(Some(new_state));
-                                            self.notes[self.selected_note_index] = updated_note;
-                                        }
-                                        Err(e) => {
-                                            self.set_toast(format!("Failed to apply tweak: {}", e));
-                                        }
+                                if ui
+                                    .add(
+                                        egui::Button::new(
+                                            RichText::new("🗑 Delete")
+                                                .color(Color32::from_rgb(248, 113, 113)),
+                                        )
+                                        .min_size(Vec2::new(80.0, 26.0)),
+                                    )
+                                    .clicked()
+                                {
+                                    self.notes.remove(self.selected_note_index);
+                                    self.set_toast("Deleted note.");
+                                    if self.selected_note_index > 0 {
+                                        self.selected_note_index -= 1;
                                     }
                                 }
                             });
-                        ui.add_space(10.0);
-                    }
-
-                    // Editable Note view
-                    ui.label(RichText::new("Title:").size(11.0).strong());
-                    ui.add(
-                        egui::TextEdit::singleline(&mut self.notes[self.selected_note_index].title)
-                            .desired_width(f32::INFINITY),
-                    );
-                    ui.add_space(6.0);
-
-                    ui.label(RichText::new("Description / Details:").size(11.0).strong());
-                    ui.add(
-                        egui::TextEdit::multiline(&mut self.notes[self.selected_note_index].body)
-                            .desired_rows(8)
-                            .desired_width(f32::INFINITY),
-                    );
-                    ui.add_space(8.0);
-
-                    ui.horizontal(|ui| {
-                        ui.label(
-                            RichText::new(format!(
-                                "Created: {} | Updated: {}",
-                                self.notes[self.selected_note_index].created_at,
-                                self.notes[self.selected_note_index].updated_at
-                            ))
-                            .size(10.0)
-                            .color(Color32::from_rgb(100, 116, 139)),
-                        );
-                    });
-
-                    ui.add_space(10.0);
-                    ui.horizontal(|ui| {
-                        if ui
-                            .add(egui::Button::new("💾 Save Note").min_size(Vec2::new(90.0, 26.0)))
-                            .clicked()
-                        {
-                            self.notes[self.selected_note_index].updated_at =
-                                chrono_or_simple_timestamp();
-                            self.set_toast("Saved note changes!");
-                        }
-
-                        if ui
-                            .add(
-                                egui::Button::new(
-                                    RichText::new("🗑 Delete")
-                                        .color(Color32::from_rgb(248, 113, 113)),
-                                )
-                                .min_size(Vec2::new(80.0, 26.0)),
-                            )
-                            .clicked()
-                        {
-                            self.notes.remove(self.selected_note_index);
-                            self.set_toast("Deleted note.");
-                            if self.selected_note_index > 0 {
-                                self.selected_note_index -= 1;
-                            }
                         }
                     });
-                }
             });
         });
     }
@@ -934,4 +972,31 @@ fn chrono_or_simple_timestamp() -> String {
         (secs / 60) % 60,
         secs % 60
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ui_render_cycle() {
+        let os_version = OsVersion {
+            major: 10,
+            minor: 0,
+            build_number: 19045,
+        };
+        let mut app = WindhawkApp::new(os_version);
+        let ctx = egui::Context::default();
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(980.0, 660.0),
+            )),
+            ..Default::default()
+        };
+        let output = ctx.run(input, |ctx| {
+            app.render_ui(ctx);
+        });
+        println!("Full update shapes count: {}", output.shapes.len());
+    }
 }
