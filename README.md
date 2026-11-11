@@ -1,10 +1,50 @@
-# Windhawk Windows 10 Notes Exporter
+# Windhawk Windows 10 Notes & Tweaks Exporter
 
-A standalone, lightweight Rust implementation of a Notes Exporter tailored specifically for **Windows 10** (builds 19041 through 21999).
+A modern, fancy, and standalone Rust desktop application tailored specifically for **Windows 10** (builds 19041 through 21999). It integrates an interactive **Live Windows 10 Tweak Engine** with a full-featured, RFC 4180-compliant **Notes Exporter**.
 
 > [!NOTE]
 > **Reverse Engineering Analysis Context**:
-> During comprehensive inspection of Windhawk v1.7.3 and 2.0.0-alpha.8, no "Export notes" or `notes.csv` feature was found upstream. This implementation realizes the minimal, assumed design specification (`id`, `title`, `body`, `created_at`, `updated_at` exported as RFC 4180 CSV with UTF-8 BOM) and is not derived from upstream Windhawk internal code.
+> During comprehensive inspection of Windhawk v1.7.3 and 2.0.0-alpha.8, no "Export notes" or `notes.csv` feature was found upstream. This implementation realizes the minimal, assumed design specification (`id`, `title`, `body`, `created_at`, `updated_at` exported as RFC 4180 CSV with UTF-8 BOM) and extends it with live, practical Windows 10 system customizations.
+
+---
+
+## ✨ Features
+
+### 1. 🎨 Modern Fancy UI
+* **Sleek Dark Theme**: Styled with a modern charcoal/zinc palette, rounded card borders, clean typography, and interactive status badges.
+* **Instant Search & Filter**: Real-time filtering across titles, descriptions, and categories as you type.
+* **Category Navigation**:
+  * 📋 **All Notes**: Unified view of all system tweaks and user notes.
+  * ⚙ **Windows 10 Tweaks**: Curated list of live system tweaks.
+  * 🗔 **Taskbar & Shell**: Taskbar button labeling, volume scroll, and shell tweaks.
+  * 📁 **File Explorer**: File extensions, hidden folders, and view customizations.
+  * 🎨 **Visual Themes**: Windows 10 dark/light theme options for apps and taskbar.
+  * ➕ **New Custom Note**: Create and archive your own tweaks or mod notes.
+* **Quick Action Controls**:
+  * **Export Notes (CSV)**: 1-click export adhering strictly to RFC 4180 with UTF-8 BOM.
+  * **Open Export Folder**: Directly opens `<Documents>\Windhawk\` in Windows File Explorer.
+  * **Copy CSV to Clipboard**: Instantly copies the full CSV representation to the Windows clipboard.
+
+### 2. ⚡ Live Windows 10 System Tweak Engine
+Directly inspects and toggles real Windows 10 system registry keys, with live status indicators and instant shell notification (`SHChangeNotify` & `WM_SETTINGCHANGE`):
+* **Never Combine Taskbar Buttons (Show Labels)**:
+  * Registry: `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\TaskbarGlomLevel`
+  * Values: `2` (Never combine / show labels) vs `0` (Always combine).
+* **Show File Name Extensions in Explorer**:
+  * Registry: `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\HideFileExt`
+  * Values: `0` (Show extensions like `.exe`, `.rs`, `.csv`) vs `1` (Hide extensions).
+* **Show Hidden Files and Folders**:
+  * Registry: `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\Hidden`
+  * Values: `1` (Show hidden) vs `2` (Hide hidden).
+* **Windows 10 Apps Dark Theme**:
+  * Registry: `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize\AppsUseLightTheme`
+  * Values: `0` (Dark theme) vs `1` (Light theme).
+* **Windows 10 Taskbar & Shell Dark Theme**:
+  * Registry: `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize\SystemUsesLightTheme`
+  * Values: `0` (Dark theme) vs `1` (Light theme).
+* **Disable Bing Web Search in Start Menu**:
+  * Registry: `HKCU\Software\Policies\Microsoft\Windows\Explorer\DisableSearchBoxSuggestions`
+  * Values: `1` (Fast local search only) vs `0` (Cloud web suggestions enabled).
 
 ---
 
@@ -31,13 +71,13 @@ A standalone, lightweight Rust implementation of a Notes Exporter tailored speci
 
 ## 🏛️ GUI Stack Choice & Justification
 
-The production GUI binary in `crates/gui` is built on **native Win32** via the official Microsoft `windows-rs` / `windows-sys` crate family.
+The production GUI binary in `crates/gui` is built on **`egui` via `eframe`** with native Windows Shell integration (`windows-sys`).
 
-**Why Native Win32?**
-1. **Authentic Windows 10 Integration**: Uses standard Win32 Common Controls (`STATIC`, `EDIT`, `BUTTON`), standard system fonts (`DEFAULT_GUI_FONT`), native message dialogs (`MessageBoxW`), and the native Shell file dialog (`GetSaveFileNameW`).
-2. **Zero GPU / Display Driver Overhead**: Unlike GPU-rendered toolkits (such as `egui`, `iced`, or `slint`), native Win32 controls do not require Vulkan, OpenGL, or DirectX hardware acceleration. They run flawlessly on virtual machines, remote desktop sessions, and headless continuous integration (CI) runners without crashing or missing display adapters.
-3. **Ultra-Low Resource Footprint**: Stripped release binary size is ~500 KB, with instantaneous startup and negligible memory usage.
-4. **Architectural Consistency**: Matches the native Win32 desktop application architecture employed by Windhawk's native helper and core modules.
+**Why egui?**
+1. **Rich, Modern Aesthetic**: Provides sleek dark styling, responsive live search filtering, animated cards, and smooth user interactions.
+2. **Interactive Tweak Dashboard**: Allows users to inspect real Windows 10 registry values and apply them on-the-fly with immediate UI feedback.
+3. **High Portability & Reliability**: Runs on hardware-accelerated OpenGL / Glow or software rasterization with zero runtime external DLL dependencies.
+4. **Instant Startup & Low Resource Usage**: Clean native binary with lightning-fast launch time and minimal memory consumption.
 
 ---
 
@@ -58,6 +98,7 @@ windhawk-win10/
     │   ├── src/
     │   │   ├── lib.rs               # Public library API
     │   │   ├── model.rs             # Note struct and sample data
+    │   │   ├── tweaks.rs            # Windows 10 Live Tweak Registry Engine
     │   │   ├── exporter.rs          # RFC 4180 CSV serializer with UTF-8 BOM
     │   │   ├── paths.rs             # Known Folders and default paths
     │   │   ├── os_guard.rs          # RtlGetVersion FFI and mockable OS validator
@@ -66,13 +107,14 @@ windhawk-win10/
     │       ├── golden_csv_tests.rs  # Golden output comparison & empty export
     │       ├── quoting_escaping_tests.rs # RFC 4180 quoting, newlines, UTF-8
     │       ├── path_tests.rs        # Directory creation and path resolution
-    │       └── os_guard_tests.rs    # Mockable build validator tests
-    └── gui/                         # Native Win32 GUI executable
+    │       ├── os_guard_tests.rs    # Mockable build validator tests
+    │       └── tweaks_tests.rs      # Windows 10 tweak registry & export tests
+    └── gui/                         # Modern Fancy GUI executable
         ├── Cargo.toml
         ├── build.rs                 # Build-time target guard
         └── src/
-            ├── main.rs              # Win32 entrypoint, logger, OS guard
-            └── ui.rs                # Window procedure, controls, and dialogs
+            ├── main.rs              # App entrypoint, logger, OS guard
+            └── ui.rs                # Modern egui view, cards, live actions
 ```
 
 ---
@@ -89,9 +131,9 @@ windhawk-win10/
 * **Schema**:
   | Column | Type | Description |
   | :--- | :--- | :--- |
-  | `id` | Integer (u64) | Unique note identifier |
+  | `id` | Integer (u64) | Unique note / tweak identifier |
   | `title` | Text | Short title of the tweak / note |
-  | `body` | Text | Detailed content of the note |
+  | `body` | Text | Detailed content of the note (including live registry status) |
   | `created_at` | Text (ISO 8601) | Creation timestamp (e.g. `2026-11-11T12:00:00Z`) |
   | `updated_at` | Text (ISO 8601) | Last modified timestamp |
 
@@ -111,7 +153,7 @@ cargo fmt --all -- --check
 # Strict linting
 cargo clippy --all-targets -- -D warnings
 
-# Execute all unit and integration tests
+# Execute all unit and integration tests (17 tests)
 cargo test --all
 
 # Build optimized release binary

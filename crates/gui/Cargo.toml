@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
-description = "Native Win32 GUI Notes Exporter for Windhawk (Windows 10)"
+description = "Modern Fancy GUI Notes & Tweaks Exporter for Windhawk (Windows 10)"
 
 [[bin]]
 name = "windhawk-win10"
@@ -15,17 +15,12 @@ windhawk-core = { path = "../core" }
 anyhow = "1.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+eframe = { version = "0.30", default-features = false, features = ["default_fonts", "glow"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = [
     "Win32_Foundation",
     "Win32_UI_WindowsAndMessaging",
-    "Win32_UI_Controls",
-    "Win32_Graphics_Gdi",
-    "Win32_System_LibraryLoader",
     "Win32_UI_Shell",
-    "Win32_UI_Shell_Common",
-    "Win32_System_Com",
-    "Win32_System_SystemInformation",
+    "Win32_System_LibraryLoader",
 ] }
-

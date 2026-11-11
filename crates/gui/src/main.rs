@@ -4,7 +4,7 @@ mod ui;
 
 use tracing::{error, info};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
-use ui::show_error_dialog;
+use ui::{show_error_dialog, WindhawkApp};
 use windhawk_core::ensure_os_supported;
 
 fn main() {
@@ -14,7 +14,7 @@ fn main() {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    info!("Starting Windhawk Windows 10 Notes Exporter");
+    info!("Starting Windhawk Windows 10 Notes & Tweaks Exporter");
 
     // Phase 3 Requirement 2:
     // Runtime guard using RtlGetVersion that refuses to run on any build outside
@@ -32,26 +32,36 @@ fn main() {
             );
 
             error!("{}: {}", error_title, error_message);
-            show_error_dialog(std::ptr::null_mut(), error_title, &error_message);
+            show_error_dialog(error_title, &error_message);
             std::process::exit(1);
         }
     };
 
     info!(
-        "OS Guard passed: Windows 10 Build {} verified. Launching GUI.",
+        "OS Guard passed: Windows 10 Build {} verified. Launching Modern Fancy GUI.",
         os_version.build_number
     );
 
-    // Run native Win32 GUI
-    if let Err(e) = unsafe { ui::run_gui(os_version) } {
+    let native_options = eframe::NativeOptions {
+        viewport: eframe::egui::ViewportBuilder::default()
+            .with_inner_size([980.0, 660.0])
+            .with_min_inner_size([820.0, 520.0])
+            .with_title(format!(
+                "Windhawk — Windows 10 Notes & Tweaks Exporter (Build {})",
+                os_version.build_number
+            )),
+        ..Default::default()
+    };
+
+    if let Err(e) = eframe::run_native(
+        "Windhawk Notes & Tweaks Exporter",
+        native_options,
+        Box::new(move |_cc| Ok(Box::new(WindhawkApp::new(os_version)))),
+    ) {
         error!("Fatal GUI runtime error: {:?}", e);
-        show_error_dialog(
-            std::ptr::null_mut(),
-            "Windhawk — Runtime Error",
-            &format!("{:?}", e),
-        );
+        show_error_dialog("Windhawk — Runtime Error", &format!("{:?}", e));
         std::process::exit(1);
     }
 
-    info!("Windhawk Windows 10 Notes Exporter terminated normally.");
+    info!("Windhawk Windows 10 Notes & Tweaks Exporter closed normally.");
 }

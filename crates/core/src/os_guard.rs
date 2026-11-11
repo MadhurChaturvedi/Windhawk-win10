@@ -129,4 +129,3 @@ pub fn ensure_os_supported() -> Result<OsVersion, OsVersionError> {
     );
     Ok(version)
 }
-

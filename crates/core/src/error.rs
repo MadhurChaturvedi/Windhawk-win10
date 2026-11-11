@@ -36,4 +36,3 @@ pub enum WindhawkError {
     #[error("Invalid data error: {0}")]
     InvalidData(String),
 }
-
