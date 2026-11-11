@@ -134,10 +134,40 @@ pub fn get_available_tweaks() -> Vec<Win10Tweak> {
             title: "Disable Bing Web Search in Start Menu".into(),
             description: "Speeds up Start menu searches by keeping queries purely local to your Windows 10 PC.".into(),
             category: "Start Menu".into(),
-            registry_path: "Software\\Policies\\Microsoft\\Windows\\Explorer".into(),
-            value_name: "DisableSearchBoxSuggestions".into(),
-            enabled_value: 1,
-            disabled_value: 0,
+            registry_path: "Software\\Microsoft\\Windows\\CurrentVersion\\Search".into(),
+            value_name: "BingSearchEnabled".into(),
+            enabled_value: 0, // 0 = Bing search disabled (pure local search)
+            disabled_value: 1, // 1 = Bing search enabled (Windows default)
+        },
+        Win10Tweak {
+            id: 107,
+            title: "Show Seconds in Taskbar Clock".into(),
+            description: "Displays real-time seconds (HH:MM:SS) in the Windows 10 system tray clock.".into(),
+            category: "Taskbar".into(),
+            registry_path: "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced".into(),
+            value_name: "ShowSecondsInSystemClock".into(),
+            enabled_value: 1, // 1 = show seconds
+            disabled_value: 0, // 0 = hide seconds
+        },
+        Win10Tweak {
+            id: 108,
+            title: "Use Small Taskbar Buttons".into(),
+            description: "Shrinks the height of the Windows 10 taskbar and icons for maximum desktop workspace.".into(),
+            category: "Taskbar".into(),
+            registry_path: "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced".into(),
+            value_name: "TaskbarSmallIcons".into(),
+            enabled_value: 1, // 1 = small icons
+            disabled_value: 0, // 0 = regular icons
+        },
+        Win10Tweak {
+            id: 109,
+            title: "Show 'This PC' Desktop Icon".into(),
+            description: "Places the classic 'This PC' (My Computer) shortcut directly onto your Windows 10 desktop.".into(),
+            category: "File Explorer".into(),
+            registry_path: "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\HideDesktopIcons\\NewStartPanel".into(),
+            value_name: "{20D04FE0-3AEA-1069-A2D8-08002B30309D}".into(),
+            enabled_value: 0, // 0 = show icon on desktop
+            disabled_value: 1, // 1 = hide icon
         },
     ]
 }
@@ -257,9 +287,9 @@ pub fn toggle_tweak(tweak: &Win10Tweak) -> Result<bool, WindhawkError> {
 /// Notifies the Windows Explorer Shell that system/environment settings have changed.
 #[cfg(windows)]
 pub fn notify_shell_changes() {
-    debug!("Broadcasting shell refresh notifications (SHChangeNotify & WM_SETTINGCHANGE)");
+    debug!("Broadcasting comprehensive shell refresh notifications (SHChangeNotify & WM_SETTINGCHANGE)");
     unsafe {
-        // Refresh Explorer views
+        // Refresh Explorer views & desktop icons
         SHChangeNotify(
             SHCNE_ASSOCCHANGED as i32,
             SHCNF_IDLIST,
@@ -267,18 +297,27 @@ pub fn notify_shell_changes() {
             std::ptr::null(),
         );
 
-        // Broadcast setting change to top-level windows
-        let env_w = to_wide("Environment");
-        let mut result: usize = 0;
-        SendMessageTimeoutW(
-            HWND_BROADCAST,
-            WM_SETTINGCHANGE,
-            0,
-            env_w.as_ptr() as isize,
-            SMTO_ABORTIFHUNG,
-            1000,
-            &mut result,
-        );
+        // Broadcast setting change to top-level windows across all relevant targets
+        let targets = [
+            "ImmersiveColorSet",
+            "TraySettings",
+            "ShellState",
+            "Environment",
+            "Policy",
+        ];
+        for target in targets {
+            let target_w = to_wide(target);
+            let mut result: usize = 0;
+            SendMessageTimeoutW(
+                HWND_BROADCAST,
+                WM_SETTINGCHANGE,
+                0,
+                target_w.as_ptr() as isize,
+                SMTO_ABORTIFHUNG,
+                1000,
+                &mut result,
+            );
+        }
     }
 }
 

@@ -130,6 +130,9 @@ pub fn prompt_save_csv_path(default_path: &Path) -> Option<PathBuf> {
 }
 
 pub fn open_folder_in_explorer(path: &Path) {
+    if !path.exists() {
+        let _ = std::fs::create_dir_all(path);
+    }
     let operation_w = to_wide("open");
     let path_w = to_wide(path.to_str().unwrap_or("."));
     unsafe {
@@ -204,6 +207,58 @@ impl WindhawkApp {
 
     pub fn set_toast(&mut self, msg: impl Into<String>) {
         self.toast_message = Some((msg.into(), std::time::Instant::now()));
+    }
+
+    pub fn find_associated_tweak(&self, note: &Note) -> Option<Win10Tweak> {
+        // 1. Direct ID match
+        if let Some(t) = self.tweaks.iter().find(|t| t.id == note.id) {
+            return Some(t.clone());
+        }
+        // 2. Keyword/Semantic match with sample notes
+        let title_l = note.title.to_lowercase();
+        let body_l = note.body.to_lowercase();
+        if title_l.contains("taskbar label") || body_l.contains("never-combine") {
+            return self.tweaks.iter().find(|t| t.id == 101).cloned();
+        }
+        if title_l.contains("file extension") || body_l.contains("hidefileext") {
+            return self.tweaks.iter().find(|t| t.id == 102).cloned();
+        }
+        if title_l.contains("hidden file") || body_l.contains("hidden") {
+            return self.tweaks.iter().find(|t| t.id == 103).cloned();
+        }
+        if title_l.contains("app") && (title_l.contains("dark") || title_l.contains("theme")) {
+            return self.tweaks.iter().find(|t| t.id == 104).cloned();
+        }
+        if (title_l.contains("taskbar") || title_l.contains("shell")) && title_l.contains("dark") {
+            return self.tweaks.iter().find(|t| t.id == 105).cloned();
+        }
+        if title_l.contains("bing") || title_l.contains("start menu") {
+            return self.tweaks.iter().find(|t| t.id == 106).cloned();
+        }
+        if title_l.contains("clock") || title_l.contains("second") {
+            return self.tweaks.iter().find(|t| t.id == 107).cloned();
+        }
+        if title_l.contains("small") && title_l.contains("taskbar") {
+            return self.tweaks.iter().find(|t| t.id == 108).cloned();
+        }
+        if title_l.contains("this pc") || body_l.contains("my computer") {
+            return self.tweaks.iter().find(|t| t.id == 109).cloned();
+        }
+        None
+    }
+
+    pub fn reload_sample_notes(&mut self) {
+        let mut notes = Note::sample_notes();
+        for tweak in &self.tweaks {
+            let status = read_tweak_status(tweak);
+            let tweak_note = tweak.to_note(status);
+            if !notes.iter().any(|n| n.id == tweak_note.id) {
+                notes.push(tweak_note);
+            }
+        }
+        self.notes = notes;
+        self.selected_note_index = 0;
+        self.set_toast("Restored sample notes and refreshed live system tweaks.");
     }
 
     fn filtered_note_indices(&self) -> Vec<usize> {
@@ -293,36 +348,6 @@ impl WindhawkApp {
                     );
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        // Export Notes CSV button in prominent header position
-                        let export_btn = egui::Button::new(
-                            RichText::new("📁 Export notes (CSV)")
-                                .color(Color32::WHITE)
-                                .strong(),
-                        )
-                        .fill(Color32::from_rgb(14, 116, 144)) // Ocean cyan
-                        .min_size(Vec2::new(140.0, 28.0));
-
-                        if ui.add(export_btn).clicked() {
-                            info!("'Export notes' button clicked in fancy GUI");
-                            let def_path = default_export_path();
-                            if let Some(target_path) = prompt_save_csv_path(&def_path) {
-                                match export_notes_to_file(&self.notes, &target_path) {
-                                    Ok(count) => {
-                                        let msg = format!(
-                                            "Successfully exported {} notes to {}",
-                                            count,
-                                            target_path.display()
-                                        );
-                                        self.set_toast(msg);
-                                    }
-                                    Err(e) => {
-                                        error!("Export failed: {}", e);
-                                        show_error_dialog("Export Failed", &e.to_string());
-                                    }
-                                }
-                            }
-                        }
-
                         // Windows 10 status pill
                         ui.scope(|ui| {
                             let pill_color = Color32::from_rgb(34, 197, 94); // Green 500
@@ -344,6 +369,67 @@ impl WindhawkApp {
                                     );
                                 });
                         });
+
+                        ui.add_space(8.0);
+
+                        // Save As custom file dialog
+                        let saveas_btn = egui::Button::new(
+                            RichText::new("💾 Save As...")
+                                .color(Color32::from_rgb(203, 213, 225))
+                                .size(12.0),
+                        )
+                        .min_size(Vec2::new(90.0, 28.0));
+
+                        if ui.add(saveas_btn).clicked() {
+                            let def_path = default_export_path();
+                            if let Some(target_path) = prompt_save_csv_path(&def_path) {
+                                match export_notes_to_file(&self.notes, &target_path) {
+                                    Ok(count) => {
+                                        let msg = format!(
+                                            "Successfully exported {} notes to {}",
+                                            count,
+                                            target_path.display()
+                                        );
+                                        self.set_toast(msg);
+                                    }
+                                    Err(e) => {
+                                        error!("Export failed: {}", e);
+                                        show_error_dialog("Export Failed", &e.to_string());
+                                    }
+                                }
+                            }
+                        }
+
+                        ui.add_space(4.0);
+
+                        // Quick 1-Click Export to Documents\Windhawk\notes.csv
+                        let export_btn = egui::Button::new(
+                            RichText::new("⚡ Quick Export (CSV)")
+                                .color(Color32::WHITE)
+                                .strong()
+                                .size(12.5),
+                        )
+                        .fill(Color32::from_rgb(14, 116, 144)) // Ocean cyan
+                        .min_size(Vec2::new(145.0, 28.0));
+
+                        if ui.add(export_btn).clicked() {
+                            info!("Quick Export button clicked");
+                            let def_path = default_export_path();
+                            match export_notes_to_file(&self.notes, &def_path) {
+                                Ok(count) => {
+                                    let msg = format!(
+                                        "✔ Exported {} notes to {}",
+                                        count,
+                                        def_path.display()
+                                    );
+                                    self.set_toast(msg);
+                                }
+                                Err(e) => {
+                                    error!("Export failed: {}", e);
+                                    show_error_dialog("Export Failed", &e.to_string());
+                                }
+                            }
+                        }
                     });
                 });
             });
@@ -512,6 +598,31 @@ impl WindhawkApp {
                 let btn_w = ui.available_width();
                 if ui
                     .add(
+                        egui::Button::new(
+                            RichText::new("⚡  Quick Export to Documents").size(12.0),
+                        )
+                        .min_size(Vec2::new(btn_w, 28.0)),
+                    )
+                    .clicked()
+                {
+                    let def_path = default_export_path();
+                    match export_notes_to_file(&self.notes, &def_path) {
+                        Ok(count) => {
+                            self.set_toast(format!(
+                                "✔ Exported {} notes to {}",
+                                count,
+                                def_path.display()
+                            ));
+                        }
+                        Err(e) => {
+                            show_error_dialog("Export Failed", &e.to_string());
+                        }
+                    }
+                }
+                ui.add_space(4.0);
+
+                if ui
+                    .add(
                         egui::Button::new(RichText::new("📂  Open Export Folder").size(12.0))
                             .min_size(Vec2::new(btn_w, 28.0)),
                     )
@@ -541,6 +652,29 @@ impl WindhawkApp {
                             self.set_toast(format!("Error copying CSV: {}", e));
                         }
                     }
+                }
+                ui.add_space(4.0);
+
+                if ui
+                    .add(
+                        egui::Button::new(RichText::new("🔄  Refresh Windows Shell").size(12.0))
+                            .min_size(Vec2::new(btn_w, 28.0)),
+                    )
+                    .clicked()
+                {
+                    windhawk_core::tweaks::notify_shell_changes();
+                    self.set_toast("Broadcasted shell refresh to Explorer and Taskbar.");
+                }
+                ui.add_space(4.0);
+
+                if ui
+                    .add(
+                        egui::Button::new(RichText::new("↩  Restore Sample Notes").size(12.0))
+                            .min_size(Vec2::new(btn_w, 28.0)),
+                    )
+                    .clicked()
+                {
+                    self.reload_sample_notes();
                 }
             });
 
@@ -682,7 +816,8 @@ impl WindhawkApp {
                         for &idx in &matching_indices {
                             let is_selected = idx == self.selected_note_index;
                             let note = &self.notes[idx];
-                            let is_tweak = note.id >= 100;
+                            let associated_tweak = self.find_associated_tweak(note);
+                            let is_tweak = associated_tweak.is_some() || note.id >= 100;
 
                             let card_bg = if is_selected {
                                 Color32::from_rgb(37, 50, 75)
@@ -696,7 +831,7 @@ impl WindhawkApp {
                                 Stroke::new(1.0_f32, Color32::from_rgb(45, 50, 65))
                             };
 
-                            egui::Frame::none()
+                            let card_resp = egui::Frame::none()
                                 .fill(card_bg)
                                 .stroke(card_stroke)
                                 .rounding(Rounding::same(6.0_f32))
@@ -718,28 +853,31 @@ impl WindhawkApp {
                                             );
                                         }
 
-                                        let first_line_body =
-                                            note.body.lines().next().unwrap_or("");
-                                        if first_line_body.contains("ACTIVE [Enabled]")
-                                            || note.body.contains("ACTIVE [Enabled]")
-                                        {
-                                            ui.label(
-                                                RichText::new("● ON")
-                                                    .color(Color32::from_rgb(34, 197, 94))
-                                                    .size(10.0)
-                                                    .strong(),
-                                            );
+                                        if let Some(ref tweak) = associated_tweak {
+                                            let live_status = read_tweak_status(tweak);
+                                            if live_status == Some(true) {
+                                                ui.label(
+                                                    RichText::new("● ON")
+                                                        .color(Color32::from_rgb(34, 197, 94))
+                                                        .size(10.0)
+                                                        .strong(),
+                                                );
+                                            } else {
+                                                ui.label(
+                                                    RichText::new("○ OFF")
+                                                        .color(Color32::from_rgb(148, 163, 184))
+                                                        .size(10.0),
+                                                );
+                                            }
                                         }
                                     });
 
-                                    let title_btn = egui::Button::new(
-                                        RichText::new(&note.title).size(13.0).strong(),
-                                    )
-                                    .frame(false);
-
-                                    if ui.add(title_btn).clicked() {
-                                        self.selected_note_index = idx;
-                                    }
+                                    ui.label(
+                                        RichText::new(&note.title)
+                                            .size(13.0)
+                                            .strong()
+                                            .color(Color32::WHITE),
+                                    );
 
                                     let preview = note
                                         .body
@@ -756,6 +894,14 @@ impl WindhawkApp {
                                             .size(11.0),
                                     );
                                 });
+
+                            let inter = card_resp.response.interact(egui::Sense::click());
+                            if inter.clicked() {
+                                self.selected_note_index = idx;
+                            }
+                            if inter.hovered() {
+                                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                            }
 
                             ui.add_space(6.0);
                         }
@@ -776,9 +922,8 @@ impl WindhawkApp {
                     .id_salt("inspector_scroll")
                     .show(ui, |ui| {
                         if self.selected_note_index < self.notes.len() {
-                            let sel_id = self.notes[self.selected_note_index].id;
-                            let associated_tweak =
-                                self.tweaks.iter().find(|t| t.id == sel_id).cloned();
+                            let note = &self.notes[self.selected_note_index];
+                            let associated_tweak = self.find_associated_tweak(note);
 
                             // If this is a real Windows 10 tweak, show live registry status and toggle button!
                             if let Some(tweak) = associated_tweak {
