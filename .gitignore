@@ -1,0 +1,9 @@
+/target/
+**/*.rs.bk
+*.pdb
+*.cab
+dist/
+*.msi
+*.zip
+.DS_Store
+Thumbs.db

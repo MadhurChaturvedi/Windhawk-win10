@@ -1,0 +1,100 @@
+<?xml version='1.0' encoding='windows-1252'?>
+<!--
+  WiX Source File for Windhawk Windows 10 Notes Exporter
+  Compatible with WiX Toolset v3 and cargo-wix.
+-->
+<Wix xmlns='http://schemas.microsoft.com/wix/2006/wi'>
+    <Product
+        Id='*'
+        Name='Windhawk Windows 10 Notes Exporter'
+        UpgradeCode='6E2E1D22-C9FE-4E76-A30B-3CF990928E44'
+        Manufacturer='Madhur Chaturvedi'
+        Language='1033'
+        Codepage='1252'
+        Version='0.1.0'>
+
+        <Package Id='*'
+            Keywords='Installer,Windhawk,Windows10,Notes,CSV'
+            Description='Windhawk Notes Exporter for Windows 10'
+            Comments='Standalone RFC 4180 CSV Notes Exporter for Windows 10 (Builds 19041-21999)'
+            Manufacturer='Madhur Chaturvedi'
+            InstallerVersion='450'
+            Languages='1033'
+            Compressed='yes'
+            SummaryCodepage='1252'
+            Platform='x64' />
+
+        <MajorUpgrade
+            Schedule='afterInstallInitialize'
+            DowngradeErrorMessage='A newer version of [ProductName] is already installed. Setup will now exit.' />
+
+        <Media Id='1' Cabinet='windhawk_win10.cab' EmbedCab='yes' DiskPrompt='CD-ROM #1' />
+        <Property Id='DiskPrompt' Value="Windhawk Notes Exporter Installation [1]" />
+
+        <!-- Target Directory Structure -->
+        <Directory Id='TARGETDIR' Name='SourceDir'>
+            <Directory Id='ProgramFiles64Folder' Name='PFiles'>
+                <Directory Id='APPLICATIONFOLDER' Name='Windhawk-win10'>
+                    <Component Id='MainExecutable' Guid='A1871780-6071-464A-A94D-6D99577D59A1' Win64='yes'>
+                        <File
+                            Id='WindhawkWin10EXE'
+                            Name='windhawk-win10.exe'
+                            DiskId='1'
+                            Source='target/release/windhawk-win10.exe'
+                            KeyPath='yes'>
+                            <Shortcut
+                                Id='StartMenuShortcut'
+                                Directory='ProgramMenuDir'
+                                Name='Windhawk Notes Exporter'
+                                WorkingDirectory='APPLICATIONFOLDER'
+                                Advertise='yes' />
+                        </File>
+                    </Component>
+
+                    <Component Id='LicenseFile' Guid='5BCEEE44-1B12-4217-91DC-192E2E693D83' Win64='yes'>
+                        <File
+                            Id='LicenseTXT'
+                            Name='LICENSE'
+                            DiskId='1'
+                            Source='LICENSE'
+                            KeyPath='yes' />
+                    </Component>
+
+                    <Component Id='ReadmeFile' Guid='41AEBC94-7168-4521-81BC-9492167FF3C4' Win64='yes'>
+                        <File
+                            Id='ReadmeMD'
+                            Name='README.md'
+                            DiskId='1'
+                            Source='README.md'
+                            KeyPath='yes' />
+                    </Component>
+                </Directory>
+            </Directory>
+
+            <!-- Start Menu Folder -->
+            <Directory Id='ProgramMenuFolder' Name='Programs'>
+                <Directory Id='ProgramMenuDir' Name='Windhawk'>
+                    <Component Id='ProgramMenuDirComponent' Guid='C579DA33-4D90-4822-B1F1-15CECE4FF733'>
+                        <RemoveFolder Id='ProgramMenuDir' On='uninstall' />
+                        <RegistryValue Root='HKCU' Key='Software\Windhawk-win10' Type='string' Value='' KeyPath='yes' />
+                    </Component>
+                </Directory>
+            </Directory>
+        </Directory>
+
+        <Feature
+            Id='Complete'
+            Title='Windhawk Windows 10 Notes Exporter'
+            Description='The complete application package.'
+            Level='1'
+            ConfigurableDirectory='APPLICATIONFOLDER'>
+            <ComponentRef Id='MainExecutable' />
+            <ComponentRef Id='LicenseFile' />
+            <ComponentRef Id='ReadmeFile' />
+            <ComponentRef Id='ProgramMenuDirComponent' />
+        </Feature>
+
+        <UIRef Id='WixUI_Minimal' />
+        <WixVariable Id='WixUILicenseRtf' Value='wix/License.rtf' />
+    </Product>
+</Wix>
